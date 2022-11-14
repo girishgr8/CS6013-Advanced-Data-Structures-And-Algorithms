@@ -2,3 +2,5 @@
 *.DS_Store
 *.out
 *.exe
+*.class
+*.zip
