@@ -1,7 +1,6 @@
 import java.util.Scanner;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.io.BufferedReader;
 import java.io.File;
@@ -20,77 +19,67 @@ class Information {
 
 public class main_prog {
 
-    public static final String FILENAME = "input.txt";
+    public static final String FILENAME = "input4.txt";
     public static Information[] informations;
 
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
+
         // read the adjacency matrix from the input txt file
-        List<List<Integer>> adjMat = readAdjacencyMatrix();
+        int[][] graph = readAdjacencyMatrix();
 
         // store the number of nodes in some variable
-        int V = adjMat.size();
+        int V = graph.length;
 
         // print the adjacency matrix read from the txt file
-        printAdjancencyMatrix(adjMat);
+        printAdjancencyMatrix(V, graph);
 
         // read the steiner vertices as an input from the user
-        List<Integer> steinerVertices = inputSteinerVertices(V);
+        int[] steiner = inputSteinerVertices(V);
 
         // store the required vertices into another list for future use
-        List<Integer> requiredVertices = new ArrayList<Integer>();
-        for (int i = 1; i <= V; i++) {
-            if (!steinerVertices.contains(i))
-                requiredVertices.add(i);
+        int[] required = new int[V - steiner.length];
+        for (int i = 0, r = 0; i < V; i++) {
+            boolean isSteiner = false;
+            for (int j = 0; j < steiner.length; j++) {
+                if (steiner[j] == i)
+                    isSteiner = true;
+            }
+            if (!isSteiner)
+                required[r++] = i;
         }
 
         // convert the Steiner Tree instance I to Metric Steiner Tree instance I'
-        List<List<Integer>> mstpAdjMat = convertToMetricSteiner(adjMat, V);
-        // print the adjacency matrix read from the txt file
-        printAdjancencyMatrix(mstpAdjMat);
-        // System.out.println("---------------------------------------------------------");
-        // for (int i = 0; i < V; i++) {
-        // Information info = informations[i];
-        // System.out.println("For node " + (i + 1) + " : ");
-        // for (int j = 0; j < V; j++)
-        // System.out.println(info.dist[j] + " " + info.predecessor[j]);
-        // System.out.println("---------------------------------------------------------");
-        // }
+        int[][] newGraph = convertToMetricSteiner(graph, V);
 
-        int[] parent = findMinimumSpanningTree(V, mstpAdjMat);
-
-        // System.out.println("Edge \tWeight");
-        // for (int i = 1; i < V; i++)
-        //     System.out.println((parent[i] + 1) + " - " + (i + 1) + "\t" + mstpAdjMat.get(i).get(parent[i]));
-
+        int[] parent = findMinimumSpanningTree(required, V, newGraph);
         int[][] tree = new int[V][V];
+        int totalCost = 0;
 
-        System.out.println("=============================================================");
-        System.out.println("Edge \tWeight\tPath");        
-        for (int i = 1; i < V; i++) {
+        for (int p = 1; p < required.length; p++) {
+            int i = required[p];
             // no direct cost path in original steiner tree instance
-            if (adjMat.get(parent[i]).get(i) >= mstpAdjMat.get(i).get(parent[i]) || adjMat.get(parent[i]).get(i) == 0) {
+            if (graph[parent[i]][i] >= newGraph[i][parent[i]] || graph[parent[i]][i] == 0) {
                 int u = parent[i], v = i;
                 List<Integer> path = new ArrayList<Integer>();
-                
+
                 Information info = informations[u];
-                path.add(v + 1);
+                path.add(v);
                 while (u != v) {
-                    v = info.predecessor[v] - 1;
-                    path.add(v + 1);
+                    v = info.predecessor[v];
+                    path.add(v);
                 }
-                System.out.println((parent[i] + 1) + " - " + (i + 1) + "\t" + mstpAdjMat.get(i).get(parent[i])
-                        + "\tPath = " + path);
-                for (int j = 0; j < path.size() - 1; j++) {
-                    u = path.get(j) - 1;
-                    v = path.get(j + 1) - 1;
-                    tree[u][v] = adjMat.get(u).get(v);
-                    tree[v][u] = adjMat.get(u).get(v);
+
+                int pathSize = path.size();
+                for (int j = 0; j < pathSize - 1; j++) {
+                    u = path.get(j);
+                    v = path.get(j + 1);
+                    tree[u][v] = graph[u][v];
+                    tree[v][u] = graph[u][v];
                 }
             }
         }
 
-        // System.out.println(Arrays.deepToString(tree));
         System.out.println(
                 "The 2-factor approximate tree we have computed is given below (we describe this tree by listing all the neighbors of all the vertices in the tree): ");
         for (int i = 0; i < V; i++) {
@@ -98,26 +87,36 @@ public class main_prog {
             for (int j = 0; j < V; j++) {
                 if (tree[i][j] != 0)
                     System.out.printf((j + 1) + " ");
+                totalCost += tree[i][j];
             }
             System.out.println();
         }
+
+        System.out.println("\nTotal Cost of given Steiner Tree = " + (totalCost / 2) + "\n");
         sc.close();
     }
 
-    public static List<List<Integer>> readAdjacencyMatrix() {
-        List<List<Integer>> adjMat = new ArrayList<List<Integer>>();
+    public static int[][] readAdjacencyMatrix() {
+        int[][] graph = null;
         try {
             File file = new File("./" + FILENAME);
             BufferedReader br = new BufferedReader(new FileReader(file));
+
+            int V = 0, v = 0;
+            while (br.readLine() != null)
+                V++;
+
+            br.close();
+            br = new BufferedReader(new FileReader(file));
+
+            graph = new int[V][V];
             String line;
+
             while ((line = br.readLine()) != null) {
                 String[] weights = line.split(" ");
-                int n = weights.length;
-                List<Integer> list = new ArrayList<Integer>();
-                for (int i = 0; i < n; i++) {
-                    list.add(Integer.parseInt(weights[i]));
-                }
-                adjMat.add(list);
+                for (int i = 0; i < V; i++)
+                    graph[v][i] = Integer.parseInt(weights[i]);
+                v++;
             }
             br.close();
         } catch (FileNotFoundException fne) {
@@ -125,24 +124,22 @@ public class main_prog {
         } catch (Exception e) {
             System.out.println("Some exception occured : " + e.toString());
         }
-        return adjMat;
+        return graph;
     }
 
-    public static void printAdjancencyMatrix(List<List<Integer>> graph) {
+    public static void printAdjancencyMatrix(int V, int[][] graph) {
         System.out.println("The input matrix A the program read from the file is displayed below: ");
-        int n = graph.size();
-        for (int i = 0; i < n; i++) {
-            List<Integer> list = graph.get(i);
-            for (int j = 0; j < n; j++) {
-                System.out.printf(list.get(j) + " ");
+        for (int i = 0; i < V; i++) {
+            for (int j = 0; j < V; j++) {
+                System.out.printf(graph[i][j] + " ");
             }
             System.out.println();
         }
     }
 
-    public static List<Integer> inputSteinerVertices(int V) {
+    public static int[] inputSteinerVertices(int V) {
         Scanner sc = new Scanner(System.in);
-        List<Integer> steinerVertices = new ArrayList<Integer>();
+        List<Integer> steiner = new ArrayList<Integer>();
         System.out.println("List all the Steiner vertices (type * to quit): ");
         String line = "";
         while (!(line = sc.nextLine()).equals("*")) {
@@ -150,24 +147,26 @@ public class main_prog {
             if (vertex > V)
                 System.out.println("Vertex number exceeds maximum vertex number of the graph");
             else
-                steinerVertices.add(vertex);
+                steiner.add(vertex - 1);
         }
         sc.close();
-        return steinerVertices;
+
+        int[] arr = new int[steiner.size()];
+        for (int i = 0; i < arr.length; i++)
+            arr[i] = steiner.get(i);
+
+        return arr;
     }
 
-    public static List<List<Integer>> convertToMetricSteiner(List<List<Integer>> graph, int V) {
-        List<List<Integer>> mstpAdjMat = new ArrayList<List<Integer>>();
+    public static int[][] convertToMetricSteiner(int[][] graph, int V) {
+        int[][] newGraph = new int[V][V];
         informations = new Information[V];
         for (int i = 0; i < V; i++) {
             informations[i] = dijkstra(graph, V, i);
-            List<Integer> list = new ArrayList<Integer>();
-            for (int k = 0; k < V; k++) {
-                list.add(informations[i].dist[k]);
-            }
-            mstpAdjMat.add(list);
+            for (int k = 0; k < V; k++)
+                newGraph[i][k] = informations[i].dist[k];
         }
-        return mstpAdjMat;
+        return newGraph;
     }
 
     public static int getMinimumCostVertex(int V, int[] dist, boolean[] visited) {
@@ -182,7 +181,7 @@ public class main_prog {
         return minCostVertex;
     }
 
-    public static Information dijkstra(List<List<Integer>> graph, int V, int src) {
+    public static Information dijkstra(int[][] graph, int V, int src) {
         Information info = new Information(V);
         boolean[] visited = new boolean[V];
         Arrays.fill(info.dist, Integer.MAX_VALUE);
@@ -201,21 +200,22 @@ public class main_prog {
             visited[u] = true;
 
             for (int v = 0; v < V; v++) {
-                int cost = graph.get(u).get(v);
+                int cost = graph[u][v];
                 if (!visited[v] && cost != 0 && info.dist[u] != Integer.MAX_VALUE
                         && info.dist[u] + cost < info.dist[v]) {
                     info.dist[v] = info.dist[u] + cost;
-                    info.predecessor[v] = (u + 1);
+                    info.predecessor[v] = u;
                 }
             }
         }
         return info;
     }
 
-    public static int getMinimumKey(int V, int[] key, boolean[] visited) {
+    public static int getMinimumKey(int V, int[] required, int[] key, boolean[] visited) {
         int minCost = Integer.MAX_VALUE, minCostVertex = -1;
 
-        for (int v = 0; v < V; v++) {
+        for (int i = 0; i < required.length; i++) {
+            int v = required[i];
             if (visited[v] == false && key[v] < minCost) {
                 minCost = key[v];
                 minCostVertex = v;
@@ -224,29 +224,30 @@ public class main_prog {
         return minCostVertex;
     }
 
-    public static int[] findMinimumSpanningTree(int V, List<List<Integer>> graph) {
+    public static int[] findMinimumSpanningTree(int[] required, int V, int[][] graph) {
         int[] parent = new int[V];
         int[] key = new int[V];
         boolean[] visited = new boolean[V];
-        Arrays.fill(key, Integer.MIN_VALUE);
+        Arrays.fill(key, Integer.MAX_VALUE);
         Arrays.fill(visited, false);
+        Arrays.fill(parent, Integer.MIN_VALUE);
 
-        key[0] = 0;
-        parent[0] = -1;
+        key[required[0]] = 0;
+        parent[required[0]] = -1;
 
-        for (int i = 0; i < V - 1; i++) {
-            int u = getMinimumKey(V, key, visited);
+        for (int i = 0; i < required.length - 1; i++) {
+            int u = getMinimumKey(V, required, key, visited);
             visited[u] = true;
 
-            for (int v = 0; v < V; v++) {
-                int edgeWt = graph.get(u).get(v);
+            for (int j = 0; j < required.length; j++) {
+                int v = required[j];
+                int edgeWt = graph[u][v];
                 if (edgeWt != 0 && visited[v] == false && edgeWt < key[v]) {
                     parent[v] = u;
                     key[v] = edgeWt;
                 }
             }
         }
-
         return parent;
     }
 }
