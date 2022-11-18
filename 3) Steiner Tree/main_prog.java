@@ -7,6 +7,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 
+// A class which stores the information outputted by Dijkstra 
+// which will be used to convert the Metric Steiner Tree Instance back to Steiner Tree Instance
 class Information {
     int[] dist;
     int[] predecessor;
@@ -52,36 +54,24 @@ public class main_prog {
         // convert the Steiner Tree instance I to Metric Steiner Tree instance I'
         int[][] newGraph = convertToMetricSteiner(graph, V);
 
+        // construct a minimum spanning tree on required vertices on the Metric Steiner
+        // Tree Instance I'
         int[] parent = findMinimumSpanningTree(required, V, newGraph);
-        int[][] tree = new int[V][V];
+
+        // now convert the MST constructed on Metric Steiner Tree back to Steiner Tree
+        // this can be done by replacing the direct edge existing in MST but
+        // non-existent in the original steiner tree instance
+        // this replacement can be done with the help of shortest path between two nodes
+        // found by Dijkstra
+        int[][] tree = convertBackToSteinerTree(V, required, parent, graph, newGraph);
+
         int totalCost = 0;
-
-        for (int p = 1; p < required.length; p++) {
-            int i = required[p];
-            // no direct cost path in original steiner tree instance
-            if (graph[parent[i]][i] >= newGraph[i][parent[i]] || graph[parent[i]][i] == 0) {
-                int u = parent[i], v = i;
-                List<Integer> path = new ArrayList<Integer>();
-
-                Information info = informations[u];
-                path.add(v);
-                while (u != v) {
-                    v = info.predecessor[v];
-                    path.add(v);
-                }
-
-                int pathSize = path.size();
-                for (int j = 0; j < pathSize - 1; j++) {
-                    u = path.get(j);
-                    v = path.get(j + 1);
-                    tree[u][v] = graph[u][v];
-                    tree[v][u] = graph[u][v];
-                }
-            }
-        }
 
         System.out.println(
                 "The 2-factor approximate tree we have computed is given below (we describe this tree by listing all the neighbors of all the vertices in the tree): ");
+
+        // print the final node neighbor information from the final MST after doing
+        // replacements of non-direct paths
         for (int i = 0; i < V; i++) {
             System.out.printf("Neighbors of Vertex " + (i + 1) + ": ");
             for (int j = 0; j < V; j++) {
@@ -92,10 +82,42 @@ public class main_prog {
             System.out.println();
         }
 
+        // print the cost of the above steiner tree constructed
         System.out.println("\nTotal Cost of given Steiner Tree = " + (totalCost / 2) + "\n");
         sc.close();
     }
 
+    public static int[][] convertBackToSteinerTree(int V, int[] required, int[] parent, int[][] steinerGraph,
+            int[][] metricSteinerGraph) {
+        int[][] tree = new int[V][V];
+        for (int p = 1; p < required.length; p++) {
+            int i = required[p];
+            // no direct cost path in original steiner tree instance
+            // then replace that edge by the stored Dijkstra's shortest path between those
+            // two nodes
+            if (steinerGraph[parent[i]][i] >= metricSteinerGraph[i][parent[i]] || steinerGraph[parent[i]][i] == 0) {
+                int u = parent[i], v = i;
+                List<Integer> path = new ArrayList<Integer>();
+
+                Information info = informations[u];
+                path.add(v);
+                while (u != v) {
+                    v = info.predecessor[v];
+                    path.add(v);
+                }
+                int pathSize = path.size();
+                for (int j = 0; j < pathSize - 1; j++) {
+                    u = path.get(j);
+                    v = path.get(j + 1);
+                    tree[u][v] = steinerGraph[u][v];
+                    tree[v][u] = steinerGraph[u][v];
+                }
+            }
+        }
+        return tree;
+    }
+
+    // a function to read the adjacency matrix from the input file
     public static int[][] readAdjacencyMatrix() {
         int[][] graph = null;
         try {
@@ -127,6 +149,7 @@ public class main_prog {
         return graph;
     }
 
+    // a function to print the adjacency matrix
     public static void printAdjancencyMatrix(int V, int[][] graph) {
         System.out.println("The input matrix A the program read from the file is displayed below: ");
         for (int i = 0; i < V; i++) {
@@ -137,6 +160,8 @@ public class main_prog {
         }
     }
 
+    // a function to read the steiner vertices from the console until user enters
+    // '*'
     public static int[] inputSteinerVertices(int V) {
         Scanner sc = new Scanner(System.in);
         List<Integer> steiner = new ArrayList<Integer>();
@@ -161,6 +186,10 @@ public class main_prog {
     public static int[][] convertToMetricSteiner(int[][] graph, int V) {
         int[][] newGraph = new int[V][V];
         informations = new Information[V];
+        // since the graph is connected, running dijsktra on every node with that
+        // node as source vertex will give make the graph a "Complete Graph"
+        // which will obey the triangular inequality which is necessary property in
+        // Metric Steiner Tree problem
         for (int i = 0; i < V; i++) {
             informations[i] = dijkstra(graph, V, i);
             for (int k = 0; k < V; k++)
@@ -169,6 +198,8 @@ public class main_prog {
         return newGraph;
     }
 
+    // a function to get the minimum cost vertex to be selected in the current
+    // iteration of Dijkstra
     public static int getMinimumCostVertex(int V, int[] dist, boolean[] visited) {
         int minDist = Integer.MAX_VALUE, minCostVertex = -1;
 
@@ -181,13 +212,18 @@ public class main_prog {
         return minCostVertex;
     }
 
+    // a function which runs Dijkstra's algorithm which is used to convert Steiner
+    // Tree instance to Metric Steiner Tree instance
     public static Information dijkstra(int[][] graph, int V, int src) {
         Information info = new Information(V);
         boolean[] visited = new boolean[V];
+
         Arrays.fill(info.dist, Integer.MAX_VALUE);
         Arrays.fill(info.predecessor, -1);
         Arrays.fill(visited, false);
 
+        // initialise the distance of src vertex to zero, this node will be picked to
+        // start the algorithm
         info.dist[src] = 0;
 
         // below thing runs in O(V^3) time
@@ -211,6 +247,8 @@ public class main_prog {
         return info;
     }
 
+    // A function to get the minimum key/cost vertex to be selected in the current
+    // iteration of Minimum Spanning Tree algorithm
     public static int getMinimumKey(int V, int[] required, int[] key, boolean[] visited) {
         int minCost = Integer.MAX_VALUE, minCostVertex = -1;
 
@@ -224,10 +262,13 @@ public class main_prog {
         return minCostVertex;
     }
 
-    public static int[] findMinimumSpanningTree(int[] required, int V, int[][] graph) {
+    // a function which finds minimum spanning tree using Kruskal's algorithm
+    // but instead of finding a MST on all vertices of I', we will find MST on required vertices of I'
+    public static int[] findMinimumSpanningTree(int[] required, int V, int[][] graph) { 
         int[] parent = new int[V];
         int[] key = new int[V];
         boolean[] visited = new boolean[V];
+
         Arrays.fill(key, Integer.MAX_VALUE);
         Arrays.fill(visited, false);
         Arrays.fill(parent, Integer.MIN_VALUE);
