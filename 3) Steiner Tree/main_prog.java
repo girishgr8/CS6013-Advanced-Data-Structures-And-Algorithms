@@ -1,6 +1,8 @@
 import java.util.Scanner;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.io.BufferedReader;
 import java.io.File;
@@ -21,7 +23,7 @@ class Information {
 
 public class main_prog {
 
-    public static final String FILENAME = "input4.txt";
+    public static final String FILENAME = "input.txt";
     public static Information[] informations;
 
     public static void main(String[] args) {
@@ -58,14 +60,28 @@ public class main_prog {
         // Tree Instance I'
         int[] parent = findMinimumSpanningTree(required, V, newGraph);
 
+        // System.out.println("parent = " + Arrays.toString(parent));
+
         // now convert the MST constructed on Metric Steiner Tree back to Steiner Tree
         // this can be done by replacing the direct edge existing in MST but
         // non-existent in the original steiner tree instance
         // this replacement can be done with the help of shortest path between two nodes
         // found by Dijkstra
         int[][] tree = convertBackToSteinerTree(V, required, parent, graph, newGraph);
-
         int totalCost = 0;
+
+        // check if the MST covers all the required vertices or not
+        // this is required as we may have scenario where in the required vertices are
+        // in two different connected components
+        boolean coversReqdVertices = checkIfMSTCoversReqdVertices(V, tree, required);
+        if (!coversReqdVertices) {
+            System.out.println(
+                    "The Steiner Tree graph instance has disconnected components. The required vertices cannot be connected.");
+            System.exit(0);
+        }
+
+        // detect and remove cycle on the reverted MST
+        detectAndRemoveCycle(V, tree);
 
         System.out.println(
                 "The 2-factor approximate tree we have computed is given below (we describe this tree by listing all the neighbors of all the vertices in the tree): ");
@@ -87,11 +103,16 @@ public class main_prog {
         sc.close();
     }
 
+    // function which converts MST on Metric Steiner Tree instance to Steiner Tree
+    // instance (i.e. original graph)
     public static int[][] convertBackToSteinerTree(int V, int[] required, int[] parent, int[][] steinerGraph,
             int[][] metricSteinerGraph) {
+
         int[][] tree = new int[V][V];
         for (int p = 1; p < required.length; p++) {
             int i = required[p];
+            if (parent[i] == Integer.MIN_VALUE)
+                continue;
             // no direct cost path in original steiner tree instance
             // then replace that edge by the stored Dijkstra's shortest path between those
             // two nodes
@@ -115,6 +136,58 @@ public class main_prog {
             }
         }
         return tree;
+    }
+
+    private static void detectAndRemoveCycle(int V, int[][] tree) {
+        boolean cycle = hasCycle(V, tree);
+        if (!cycle)
+            return;
+    }
+
+    // recursive function to check if cycle exists in the graph or not
+    public static boolean hasCycleutil(int V, int[][] tree, boolean[] visited, int u, int parent) {
+        visited[u] = true;
+        for (int v = 0; v < V; v++) {
+            if (tree[u][v] != 0) {
+                if (!visited[v]) {
+                    if (hasCycleutil(v, tree, visited, v, u))
+                        return true;
+                }
+                if (u != parent)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    // utility function to check if cycle exists in the graph or not
+    public static boolean hasCycle(int V, int[][] tree) {
+        boolean[] visited = new boolean[V];
+        for (int u = 0; u < V; u++) {
+            if (!visited[u] && hasCycleutil(V, tree, visited, u, -1))
+                return true;
+        }
+        return false;
+    }
+
+    // function to check if MST on Steiner Tree covers on required vertices or not
+    public static boolean checkIfMSTCoversReqdVertices(int V, int[][] tree, int[] required) {
+        Set<Integer> treeVertices = new HashSet<Integer>();
+
+        for (int i = 0; i < V; i++) {
+            for (int j = 0; j < V; j++) {
+                if (tree[i][j] != 0) {
+                    treeVertices.add(i);
+                    treeVertices.add(j);
+                }
+            }
+        }
+
+        for (int i = 0; i < required.length; i++) {
+            if (!treeVertices.contains(required[i]))
+                return false;
+        }
+        return true;
     }
 
     // a function to read the adjacency matrix from the input file
@@ -263,8 +336,9 @@ public class main_prog {
     }
 
     // a function which finds minimum spanning tree using Kruskal's algorithm
-    // but instead of finding a MST on all vertices of I', we will find MST on required vertices of I'
-    public static int[] findMinimumSpanningTree(int[] required, int V, int[][] graph) { 
+    // but instead of finding a MST on all vertices of I', we will find MST on
+    // required vertices of I'
+    public static int[] findMinimumSpanningTree(int[] required, int V, int[][] graph) {
         int[] parent = new int[V];
         int[] key = new int[V];
         boolean[] visited = new boolean[V];
@@ -278,6 +352,8 @@ public class main_prog {
 
         for (int i = 0; i < required.length - 1; i++) {
             int u = getMinimumKey(V, required, key, visited);
+            if (u == -1)
+                continue;
             visited[u] = true;
 
             for (int j = 0; j < required.length; j++) {
